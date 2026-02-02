@@ -1,0 +1,83 @@
+import React, { useEffect, useState } from 'react';
+import { User, Bell, BarChart3 } from 'lucide-react';
+import { StatCard } from '../components/StatCard';
+import { AiAnalysis } from '../components/AiAnalysis';
+import { HoldingsTable } from '../components/HoldingsTable';
+import { HistoryChart } from '../components/HistoryChart';
+
+export const FundDetail = ({ fund, onSubscribe }) => {
+  const [showHistory, setShowHistory] = useState(false);
+
+  if (!fund) return null;
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+      
+      {/* 1. Detail Header Card */}
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+        <div className="flex flex-col md:flex-row justify-between md:items-start gap-4 mb-6">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-bold">{fund.type || '基金'}</span>
+              <span className="text-slate-400 text-xs font-mono">{fund.id}</span>
+            </div>
+            <h2 className="text-2xl font-bold text-slate-800">{fund.name}</h2>
+            <div className="flex items-center gap-4 mt-2 text-sm text-slate-500">
+              <span className="flex items-center gap-1"><User className="w-4 h-4" /> 基金经理: {fund.manager || '--'}</span>
+            </div>
+          </div>
+          <div className="text-right hidden md:block">
+            <p className="text-xs text-slate-400 mb-1">更新时间</p>
+            <p className="font-mono text-slate-600">{fund.time}</p>
+          </div>
+        </div>
+
+        {/* Main Stats */}
+        <div className="grid grid-cols-3 gap-6 py-6 border-t border-b border-slate-50">
+          <div className="col-span-3 md:col-span-1">
+            <StatCard 
+              label="实时估算涨跌" 
+              value={fund.estRate} 
+              isRate={true} 
+              highlight={true} 
+              large={true}
+            />
+          </div>
+          <StatCard label="实时估值" value={fund.estimate ? fund.estimate.toFixed(4) : '--'} large={true} />
+          <StatCard label="昨日单位净值" value={fund.nav ? fund.nav.toFixed(4) : '--'} large={true} />
+        </div>
+
+        {/* Chart Section (Conditional) */}
+        {showHistory && (
+            <div className="py-4 border-b border-slate-50 mb-4 animate-in fade-in duration-300">
+                <h3 className="text-sm font-bold text-slate-700 mb-4">近30个交易日走势</h3>
+                <HistoryChart fundId={fund.id} />
+            </div>
+        )}
+
+        {/* Actions */}
+        <div className="mt-6 flex gap-3">
+          <button 
+            onClick={(e) => onSubscribe(fund)}
+            className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl font-medium transition-colors flex justify-center items-center gap-2"
+          >
+            <Bell className="w-4 h-4" /> 订阅提醒
+          </button>
+          <button 
+            onClick={() => setShowHistory(!showHistory)}
+            className={`flex-1 py-3 rounded-xl font-medium transition-colors flex justify-center items-center gap-2 ${showHistory ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
+          >
+            <BarChart3 className="w-4 h-4" /> {showHistory ? '收起走势' : '历史走势'}
+          </button>
+        </div>
+      </div>
+
+      {/* 2. AI Analysis Section */}
+      <AiAnalysis fund={fund} />
+
+      {/* 3. Holdings */}
+      <HoldingsTable holdings={fund.holdings} />
+
+    </div>
+  );
+};
