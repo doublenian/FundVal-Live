@@ -9,7 +9,7 @@ NC='\033[0m'
 echo -e "${GREEN}>>> Starting FundVal Live System...${NC}"
 
 # Create logs directory
-mkdir -p logs
+mkdir -p logs backend/data
 
 # 1. Check Prerequisites
 if ! command -v uv &> /dev/null; then
