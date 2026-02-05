@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, X, Edit2, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, X, Edit2, Trash2, RefreshCw, ArrowUpDown } from 'lucide-react';
 import { getAccountPositions, updatePosition, deletePosition } from '../services/api';
 import { getRateColor } from '../components/StatCard';
 import { PortfolioChart } from '../components/PortfolioChart';
@@ -11,6 +11,7 @@ const Account = ({ onSelectFund, onPositionChange, onSyncWatchlist, syncLoading 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingPos, setEditingPos] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [sortOrder, setSortOrder] = useState(null); // null | 'asc' | 'desc'
 
   // Form State
   const [formData, setFormData] = useState({ code: '', cost: '', shares: '' });
@@ -95,7 +96,26 @@ const Account = ({ onSelectFund, onPositionChange, onSyncWatchlist, syncLoading 
     }
   };
 
+  const handleSort = () => {
+    if (sortOrder === null) {
+      setSortOrder('desc'); // 第一次点击：降序
+    } else if (sortOrder === 'desc') {
+      setSortOrder('asc'); // 第二次点击：升序
+    } else {
+      setSortOrder(null); // 第三次点击：取消排序
+    }
+  };
+
   const { summary, positions } = data;
+
+  // 排序逻辑
+  const sortedPositions = sortOrder
+    ? [...positions].sort((a, b) => {
+        const aValue = a.day_income || 0;
+        const bValue = b.day_income || 0;
+        return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
+      })
+    : positions;
 
   return (
     <div className="space-y-6">
@@ -159,19 +179,28 @@ const Account = ({ onSelectFund, onPositionChange, onSyncWatchlist, syncLoading 
                 <th className="px-4 py-3 text-right border-b border-slate-100 bg-slate-50">净值 | 估值</th>
                 <th className="px-4 py-3 text-right border-b border-slate-100 bg-slate-50">份额 | 成本</th>
                 <th className="px-4 py-3 text-right border-b border-slate-100 bg-slate-50">持有收益</th>
-                <th className="px-4 py-3 text-right border-b border-slate-100 bg-slate-50">当日预估</th>
+                <th className="px-4 py-3 text-right border-b border-slate-100 bg-slate-50">
+                  <button
+                    onClick={handleSort}
+                    className="inline-flex items-center gap-1 hover:text-blue-600 transition-colors"
+                    title={sortOrder === null ? '点击排序' : sortOrder === 'desc' ? '降序' : '升序'}
+                  >
+                    当日预估
+                    <ArrowUpDown className={`w-3 h-3 ${sortOrder ? 'text-blue-600' : ''}`} />
+                  </button>
+                </th>
                 <th className="px-4 py-3 text-right border-b border-slate-100 bg-slate-50">预估总值</th>
                 <th className="px-4 py-3 text-center border-b border-slate-100 bg-slate-50 rounded-tr-xl">操作</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-base">
-              {positions.length === 0 ? (
+              {sortedPositions.length === 0 ? (
                 <tr>
                   <td colSpan="7" className="px-4 py-8 text-center text-slate-400">
                     暂无持仓，快去记一笔吧
                   </td>
                 </tr>
-              ) : positions.map((pos) => (
+              ) : sortedPositions.map((pos) => (
                 <tr key={pos.code} className="hover:bg-slate-50 transition-colors">
                   <td 
                     className="px-4 py-3 cursor-pointer group max-w-[180px]"
