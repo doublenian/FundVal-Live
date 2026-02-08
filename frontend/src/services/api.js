@@ -4,6 +4,7 @@ const API_BASE_URL = '/api';
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
+  withCredentials: true, // 携带认证 cookie
 });
 
 export const searchFunds = async (query) => {
