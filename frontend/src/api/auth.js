@@ -37,6 +37,27 @@ export async function login(username, password) {
 }
 
 /**
+ * 注册
+ */
+export async function register(username, password) {
+  const response = await fetch(`${API_BASE}/auth/register`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ username, password }),
+    credentials: 'include', // 重要：携带 cookie
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Register failed');
+  }
+
+  return response.json();
+}
+
+/**
  * 登出
  */
 export async function logout() {

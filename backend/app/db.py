@@ -530,6 +530,58 @@ def init_db():
 
         cursor.execute("INSERT OR IGNORE INTO schema_version (version) VALUES (6)")
 
+    # ============================================================================
+    # Migration 7: 修改 accounts 表的 UNIQUE 约束
+    # 从 UNIQUE(name) 改为 UNIQUE(user_id, name)
+    # 允许不同用户创建同名账户
+    # ============================================================================
+    cursor.execute("SELECT version FROM schema_version WHERE version = 7")
+    if not cursor.fetchone():
+        logger.info("Running migration 7: Update accounts table UNIQUE constraint")
+
+        # 1. 检查 accounts 表是否有 user_id 列
+        cursor.execute("PRAGMA table_info(accounts)")
+        columns = {row[1]: row for row in cursor.fetchall()}
+
+        if 'user_id' not in columns:
+            logger.error("Migration 7 requires user_id column in accounts table (from migration 5)")
+            raise Exception("Please run migration 5 first")
+
+        # 2. 创建新表（带正确的 UNIQUE 约束）
+        cursor.execute("""
+            CREATE TABLE accounts_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT,
+                user_id INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, name),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+
+        # 3. 复制数据
+        cursor.execute("""
+            INSERT INTO accounts_new (id, name, description, user_id, created_at, updated_at)
+            SELECT id, name, description, user_id, created_at, updated_at
+            FROM accounts
+        """)
+
+        # 4. 删除旧表
+        cursor.execute("DROP TABLE accounts")
+
+        # 5. 重命名新表
+        cursor.execute("ALTER TABLE accounts_new RENAME TO accounts")
+
+        # 6. 重建索引
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON accounts(user_id)
+        """)
+
+        cursor.execute("INSERT OR IGNORE INTO schema_version (version) VALUES (7)")
+        logger.info("Migration 7 completed: accounts table UNIQUE constraint updated")
+
     conn.commit()
     conn.close()
     logger.info("Database initialized.")

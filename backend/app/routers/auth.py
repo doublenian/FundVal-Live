@@ -110,6 +110,30 @@ def get_auth_mode():
     }
 
 
+@router.get("/registration-enabled")
+def get_registration_enabled():
+    """
+    获取注册是否开启（不需要认证，公开接口）
+
+    Returns:
+        dict: { registration_enabled: bool }
+    """
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT value FROM settings WHERE key = 'allow_registration'"
+        )
+        row = cursor.fetchone()
+        enabled = row and row[0] == '1'
+
+        return {
+            "registration_enabled": enabled
+        }
+    finally:
+        conn.close()
+
+
 @router.post("/login", response_model=UserResponse)
 def login(request: LoginRequest, response: Response):
     """
@@ -211,6 +235,100 @@ def logout(request: Request, response: Response, user: User = Depends(require_au
     response.delete_cookie(key=SESSION_COOKIE_NAME)
 
     return {"message": "登出成功"}
+
+
+@router.post("/register", response_model=UserResponse)
+def register(request: LoginRequest, response: Response):
+    """
+    用户注册（需要开启注册功能）
+
+    Args:
+        request: 注册请求（username, password）
+        response: FastAPI Response 对象
+
+    Returns:
+        UserResponse: 新用户信息
+
+    Raises:
+        HTTPException: 403 注册功能未开启
+        HTTPException: 400 用户名已存在
+        HTTPException: 400 密码长度不足
+    """
+    # 检查是否允许注册
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM settings WHERE key = 'allow_registration'")
+        row = cursor.fetchone()
+        allow_registration = row and row[0] == '1'
+
+        if not allow_registration:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="注册功能未开启，请联系管理员"
+            )
+
+        # 验证密码长度
+        if len(request.password) < 6:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="密码长度至少为 6 位"
+            )
+
+        # 检查用户名是否已存在
+        cursor.execute(
+            "SELECT id FROM users WHERE username = ?",
+            (request.username,)
+        )
+        if cursor.fetchone() is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="用户名已存在"
+            )
+
+        # 创建用户（普通用户，非管理员）
+        password_hash = hash_password(request.password)
+        cursor.execute(
+            "INSERT INTO users (username, password_hash, is_admin) VALUES (?, ?, 0)",
+            (request.username, password_hash)
+        )
+        user_id = cursor.lastrowid
+
+        # 为新用户创建默认账户
+        cursor.execute(
+            "INSERT INTO accounts (name, description, user_id) VALUES (?, ?, ?)",
+            ("默认账户", "系统自动创建的默认账户", user_id)
+        )
+        account_id = cursor.lastrowid
+
+        # 设置默认账户 ID
+        cursor.execute(
+            "INSERT INTO user_settings (user_id, key, value) VALUES (?, ?, ?)",
+            (user_id, "default_account_id", str(account_id))
+        )
+
+        conn.commit()
+
+        # 自动登录：创建 session
+        session_id = create_session(user_id)
+
+        # 设置 cookie
+        response.set_cookie(
+            key=SESSION_COOKIE_NAME,
+            value=session_id,
+            max_age=SESSION_EXPIRY_DAYS * 24 * 60 * 60,
+            httponly=True,
+            samesite="lax"
+        )
+
+        return UserResponse(
+            id=user_id,
+            username=request.username,
+            is_admin=False,
+            default_account_id=account_id
+        )
+    finally:
+        conn.close()
 
 
 @router.get("/me", response_model=UserResponse)
@@ -352,7 +470,7 @@ def create_user(request: CreateUserRequest, admin: User = Depends(require_admin)
         # 为新用户创建默认账户
         cursor.execute(
             "INSERT INTO accounts (name, description, user_id) VALUES (?, ?, ?)",
-            (f"{request.username} 的账户", "系统自动创建的默认账户", user_id)
+            ("默认账户", "系统自动创建的默认账户", user_id)
         )
         account_id = cursor.lastrowid
 
