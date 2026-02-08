@@ -92,7 +92,10 @@ def fund_history(
 ):
     """
     Get historical NAV data for charts.
-    Optionally include transaction markers if account_id is provided (需要认证并验证所有权).
+    Optionally include transaction markers if account_id is provided (需要验证所有权).
+
+    单用户模式：不需要认证，可以获取历史数据
+    多用户模式：如果提供 account_id，需要验证所有权
     """
     try:
         history = get_fund_history(fund_id, limit=limit)
@@ -100,7 +103,8 @@ def fund_history(
         # If account_id is provided, fetch transactions for this fund
         transactions = []
         if account_id:
-            # 验证账户所有权
+            # 验证账户所有权（单用户模式和多用户模式都需要验证）
+            from ..utils import verify_account_ownership
             verify_account_ownership(account_id, current_user)
 
             from ..db import get_db_connection
