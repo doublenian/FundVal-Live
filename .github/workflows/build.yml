@@ -141,7 +141,7 @@ jobs:
             - **AppImage**: `FundVal-Live-*.AppImage`
             - **Debian/Ubuntu**: `fundval-live_*_amd64.deb`
 
-            ## 本次更新 (v1.2.0)
+            ## 本次更新 (v1.2.1)
 
             ### 🔐 多用户系统（重大更新）
 
