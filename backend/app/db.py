@@ -397,6 +397,87 @@ def init_db():
 
         cursor.execute("INSERT OR IGNORE INTO schema_version (version) VALUES (4)")
 
+    # Migration: Multi-user system tables
+    if current_version < 5:
+        logger.info("Running migration: adding multi-user system tables")
+
+        # 1. Create users table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                is_admin INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Create unique index on username
+        cursor.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username)
+        """)
+
+        # 2. Create user_settings table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_settings (
+                user_id INTEGER NOT NULL,
+                key TEXT NOT NULL,
+                value TEXT,
+                encrypted INTEGER DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id, key),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+
+        # Create index on user_id
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_user_settings_user_id ON user_settings(user_id)
+        """)
+
+        # 3. Add multi_user_mode and allow_registration to settings table
+        cursor.execute("""
+            INSERT OR IGNORE INTO settings (key, value, encrypted)
+            VALUES ('multi_user_mode', '0', 0)
+        """)
+
+        cursor.execute("""
+            INSERT OR IGNORE INTO settings (key, value, encrypted)
+            VALUES ('allow_registration', '0', 0)
+        """)
+
+        # 4. Add user_id column to accounts table
+        cursor.execute("PRAGMA table_info(accounts)")
+        accounts_columns = [row[1] for row in cursor.fetchall()]
+
+        if 'user_id' not in accounts_columns:
+            logger.info("Adding user_id column to accounts table")
+            cursor.execute("""
+                ALTER TABLE accounts ADD COLUMN user_id INTEGER
+            """)
+
+            # Create index on user_id
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON accounts(user_id)
+            """)
+
+        # 5. Add user_id column to subscriptions table
+        cursor.execute("PRAGMA table_info(subscriptions)")
+        subscriptions_columns = [row[1] for row in cursor.fetchall()]
+
+        if 'user_id' not in subscriptions_columns:
+            logger.info("Adding user_id column to subscriptions table")
+            cursor.execute("""
+                ALTER TABLE subscriptions ADD COLUMN user_id INTEGER
+            """)
+
+            # Create index on user_id
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id)
+            """)
+
+        cursor.execute("INSERT OR IGNORE INTO schema_version (version) VALUES (5)")
+
     conn.commit()
     conn.close()
     logger.info("Database initialized.")
