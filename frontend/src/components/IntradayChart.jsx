@@ -13,7 +13,9 @@ export const IntradayChart = ({ fundId }) => {
       const url = date
         ? `/api/fund/${fundId}/intraday?date=${date}`
         : `/api/fund/${fundId}/intraday`;
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        credentials: 'include', // 携带认证 cookie
+      });
       const json = await response.json();
       setData(json);
     } catch (e) {

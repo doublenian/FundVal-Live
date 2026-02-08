@@ -56,7 +56,9 @@ export default function Settings() {
   const loadSettings = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/settings');
+      const response = await fetch('/api/settings', {
+        credentials: 'include', // 携带认证 cookie
+      });
       if (!response.ok) throw new Error('Failed to load settings');
       const data = await response.json();
 
@@ -123,7 +125,8 @@ export default function Settings() {
       const response = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings: filteredSettings })
+        body: JSON.stringify({ settings: filteredSettings }),
+        credentials: 'include', // 携带认证 cookie
       });
 
       if (!response.ok) {

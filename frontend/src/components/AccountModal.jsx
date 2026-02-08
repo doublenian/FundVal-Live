@@ -23,7 +23,8 @@ export const AccountModal = ({ accounts, currentAccount, onClose, onRefresh, onS
       const response = await fetch('/api/accounts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newName.trim(), description: newDescription.trim() })
+        body: JSON.stringify({ name: newName.trim(), description: newDescription.trim() }),
+        credentials: 'include', // 携带认证 cookie
       });
 
       if (!response.ok) {
@@ -48,7 +49,10 @@ export const AccountModal = ({ accounts, currentAccount, onClose, onRefresh, onS
     setError('');
 
     try {
-      const response = await fetch(`/api/accounts/${id}`, { method: 'DELETE' });
+      const response = await fetch(`/api/accounts/${id}`, {
+        method: 'DELETE',
+        credentials: 'include', // 携带认证 cookie
+      });
 
       if (!response.ok) {
         const data = await response.json();
@@ -79,7 +83,8 @@ export const AccountModal = ({ accounts, currentAccount, onClose, onRefresh, onS
       const response = await fetch(`/api/accounts/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: editName.trim(), description: editDescription.trim() })
+        body: JSON.stringify({ name: editName.trim(), description: editDescription.trim() }),
+        credentials: 'include', // 携带认证 cookie
       });
 
       if (!response.ok) {
