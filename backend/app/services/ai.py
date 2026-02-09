@@ -181,7 +181,7 @@ class AIService:
                 sharpe_diff = abs(expected_sharpe - sharpe_val)
 
                 if sharpe_diff > 0.3:
-                    consistency_note = f"\n⚠️ 数据一致性警告：夏普比率 {sharpe_val} 与计算值 {expected_sharpe:.2f} 偏差 {sharpe_diff:.2f}，可能存在数据异常。"
+                    consistency_note = f"\n 数据一致性警告：夏普比率 {sharpe_val} 与计算值 {expected_sharpe:.2f} 偏差 {sharpe_diff:.2f}，可能存在数据异常。"
                 else:
                     consistency_note = f"\n✓ 数据自洽性验证通过：夏普比率与年化回报/波动率数学一致（偏差 {sharpe_diff:.2f}）。"
         except:
@@ -200,21 +200,31 @@ class AIService:
                 for h in fund_info["holdings"][:10]
             ])
 
+        # Prepare fund_info dict for prompt
+        fund_info_dict = {
+            "代码": fund_id,
+            "名称": fund_name,
+            "类型": fund_info.get("type", "未知"),
+            "基金经理": fund_info.get("manager", "未知"),
+            "最新净值": fund_info.get("nav", "--"),
+            "实时估值": fund_info.get("estimate", "--"),
+            "估值涨跌": f"{fund_info.get('estRate', 0)}%",
+            "持仓集中度": fund_info.get("indicators", {}).get("concentration", "--"),
+            "前十持仓": holdings_str or "暂无持仓数据"
+        }
+
+        # Prepare technical_indicators dict for prompt
+        technical_indicators_dict = {
+            "夏普比率": technical_indicators.get("sharpe", "--"),
+            "年化波动率": technical_indicators.get("volatility", "--"),
+            "最大回撤": technical_indicators.get("max_drawdown", "--"),
+            "年化回报": technical_indicators.get("annual_return", "--")
+        }
+
         variables = {
-            "fund_code": fund_id,
-            "fund_name": fund_name,
-            "fund_type": fund_info.get("type", "未知"),
-            "manager": fund_info.get("manager", "未知"),
-            "nav": fund_info.get("nav", "--"),
-            "estimate": fund_info.get("estimate", "--"),
-            "est_rate": fund_info.get("estRate", 0),
-            "sharpe": technical_indicators.get("sharpe", "--"),
-            "volatility": technical_indicators.get("volatility", "--"),
-            "max_drawdown": technical_indicators.get("max_drawdown", "--"),
-            "annual_return": technical_indicators.get("annual_return", "--"),
-            "concentration": fund_info.get("indicators", {}).get("concentration", "--"),
-            "holdings": holdings_str or "暂无持仓数据",
-            "history_summary": history_summary
+            "fund_info": str(fund_info_dict),
+            "history_summary": history_summary,
+            "technical_indicators": str(technical_indicators_dict)
         }
 
         # 2. Get prompt template and replace variables (with user_id filtering)
@@ -223,64 +233,31 @@ class AIService:
         # 3. Invoke LLM
         chain = prompt_template | llm | StrOutputParser()
 
+        # Import json at module level to avoid UnboundLocalError
+        import json
+
         try:
-            raw_result = await chain.ainvoke(variables)
+            markdown_result = await chain.ainvoke(variables)
 
-            # 4. Parse Result
-            clean_json = raw_result.strip()
-            if "```json" in clean_json:
-                clean_json = clean_json.split("```json")[1].split("```")[0]
-            elif "```" in clean_json:
-                clean_json = clean_json.split("```")[1].split("```")[0]
+            # Clean up markdown (remove code blocks if present)
+            clean_markdown = markdown_result.strip()
+            if "```markdown" in clean_markdown:
+                clean_markdown = clean_markdown.split("```markdown")[1].split("```")[0].strip()
+            elif "```" in clean_markdown:
+                # If wrapped in generic code blocks, extract content
+                clean_markdown = clean_markdown.split("```")[1].split("```")[0].strip()
 
-            import json
-            result = json.loads(clean_json)
-
-            # 验证必需字段
-            required_fields = ["summary", "risk_level", "analysis_report", "suggestions"]
-            missing_fields = [f for f in required_fields if f not in result]
-
-            if missing_fields:
-                return {
-                    "summary": "AI 返回格式错误",
-                    "risk_level": "未知",
-                    "analysis_report": f"AI 返回的 JSON 缺少必需字段：{', '.join(missing_fields)}\n\n原始输出：\n{raw_result[:500]}",
-                    "suggestions": ["请检查提示词是否要求返回完整的 JSON 格式"],
-                    "indicators": indicators,
-                    "timestamp": datetime.datetime.now().strftime("%H:%M:%S")
-                }
-
-            # 验证字段类型
-            if not isinstance(result.get("suggestions"), list):
-                result["suggestions"] = [str(result.get("suggestions", ""))]
-
-            # Enrich with indicators for frontend display
-            result["indicators"] = indicators
-            result["timestamp"] = datetime.datetime.now().strftime("%H:%M:%S")
-
-            return result
-
-        except json.JSONDecodeError as e:
-            print(f"JSON Parse Error: {e}")
+            # Return markdown directly with metadata
             return {
-                "summary": "AI 返回格式错误",
-                "risk_level": "未知",
-                "analysis_report": f"AI 未返回有效的 JSON 格式。\n\n错误：{str(e)}\n\n原始输出：\n{raw_result[:500]}",
-                "suggestions": [
-                    "请检查提示词是否要求返回纯 JSON 格式",
-                    "确保 JSON 格式正确（不要有多余的逗号、引号等）",
-                    "不要用 Markdown 代码块包裹 JSON"
-                ],
+                "markdown": clean_markdown,
                 "indicators": indicators,
                 "timestamp": datetime.datetime.now().strftime("%H:%M:%S")
             }
+
         except Exception as e:
             print(f"AI Analysis Error: {e}")
             return {
-                "summary": "分析生成失败",
-                "risk_level": "未知",
-                "analysis_report": f"LLM 调用或解析失败: {str(e)}",
-                "suggestions": ["请检查 API 配置和提示词格式"],
+                "markdown": f"##  分析失败\n\nLLM 调用失败: {str(e)}\n\n请检查 API 配置和提示词格式。",
                 "indicators": indicators,
                 "timestamp": datetime.datetime.now().strftime("%H:%M:%S")
             }
