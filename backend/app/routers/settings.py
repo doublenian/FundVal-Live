@@ -39,8 +39,8 @@ def get_settings(current_user: Optional[User] = Depends(get_current_user)):
         cursor = conn.cursor()
 
         if user_id is None:
-            # 单用户模式：从 settings 表读取
-            cursor.execute("SELECT key, value, encrypted FROM settings WHERE key NOT IN ('multi_user_mode', 'allow_registration')")
+            # 单用户模式：从 settings 表读取（user_id IS NULL）
+            cursor.execute("SELECT key, value, encrypted FROM settings WHERE user_id IS NULL AND key NOT IN ('multi_user_mode', 'allow_registration')")
         else:
             # 多用户模式：从 user_settings 表读取
             cursor.execute("SELECT key, value, encrypted FROM user_settings WHERE user_id = ?", (user_id,))
@@ -166,19 +166,19 @@ def get_preferences(current_user: Optional[User] = Depends(get_current_user)):
         cursor = conn.cursor()
 
         if user_id is None:
-            # 单用户模式：从 settings 表读取
+            # 单用户模式：从 settings 表读取（user_id IS NULL）
             # 获取自选列表
-            cursor.execute("SELECT value FROM settings WHERE key = 'user_watchlist'")
+            cursor.execute("SELECT value FROM settings WHERE key = 'user_watchlist' AND user_id IS NULL")
             watchlist_row = cursor.fetchone()
             watchlist = watchlist_row["value"] if watchlist_row else "[]"
 
             # 获取当前账户
-            cursor.execute("SELECT value FROM settings WHERE key = 'user_current_account'")
+            cursor.execute("SELECT value FROM settings WHERE key = 'user_current_account' AND user_id IS NULL")
             account_row = cursor.fetchone()
             current_account = int(account_row["value"]) if account_row else 1
 
             # 获取排序选项
-            cursor.execute("SELECT value FROM settings WHERE key = 'user_sort_option'")
+            cursor.execute("SELECT value FROM settings WHERE key = 'user_sort_option' AND user_id IS NULL")
             sort_row = cursor.fetchone()
             sort_option = sort_row["value"] if sort_row else None
         else:

@@ -73,7 +73,7 @@ def _get_setting_bool(key: str, default: bool = False) -> bool:
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
+        cursor.execute("SELECT value FROM settings WHERE key = ? AND user_id IS NULL", (key,))
         row = cursor.fetchone()
         if row is None:
             return default
