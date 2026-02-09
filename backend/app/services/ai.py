@@ -188,11 +188,13 @@ class AIService:
         fund_detail = get_fund_intraday(fund_id)
 
         # Extract technical indicators (already calculated by get_fund_intraday)
+        # IMPORTANT: Technical indicators are nested in indicators.technical, not at top level
+        tech_data = fund_detail.get("indicators", {}).get("technical", {})
         technical_indicators = {
-            "sharpe": fund_detail.get("sharpe", "--"),
-            "volatility": fund_detail.get("volatility", "--"),
-            "max_drawdown": fund_detail.get("max_drawdown", "--"),
-            "annual_return": fund_detail.get("annual_return", "--"),
+            "sharpe": tech_data.get("sharpe", "--"),
+            "volatility": tech_data.get("volatility", "--"),
+            "max_drawdown": tech_data.get("max_drawdown", "--"),
+            "annual_return": tech_data.get("annual_return", "--"),
         }
 
         # Get history for trend analysis (use same source as technical indicators)
