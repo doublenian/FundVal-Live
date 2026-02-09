@@ -85,14 +85,22 @@ def collect_intraday_snapshots():
     # 3. Get holdings + watchlist (all funds users care about)
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-        SELECT DISTINCT code FROM (
-            SELECT code FROM positions WHERE shares > 0
-            UNION
-            SELECT fund_code as code FROM watchlist
-        )
-    """)
+
+    # Get holdings
+    cursor.execute("SELECT DISTINCT code FROM positions WHERE shares > 0")
     codes = [row["code"] for row in cursor.fetchall()]
+
+    # Get watchlist from settings (stored as JSON array)
+    import json
+    cursor.execute("SELECT value FROM settings WHERE key = 'user_watchlist' AND user_id IS NULL")
+    watchlist_row = cursor.fetchone()
+    if watchlist_row and watchlist_row["value"]:
+        try:
+            watchlist_codes = json.loads(watchlist_row["value"])
+            codes.extend(watchlist_codes)
+            codes = list(set(codes))  # Remove duplicates
+        except:
+            pass
 
     if not codes:
         conn.close()
@@ -305,10 +313,13 @@ def start_scheduler():
                 now_cst = datetime.now(CST)
                 today_str = now_cst.strftime("%Y-%m-%d")
 
-                # Get collection interval from settings
+                # Get collection interval from settings (single-user mode: user_id IS NULL)
                 conn = get_db_connection()
                 cursor = conn.cursor()
-                cursor.execute("SELECT value FROM settings WHERE key = 'INTRADAY_COLLECT_INTERVAL'")
+                cursor.execute("""
+                    SELECT value FROM settings
+                    WHERE key = 'INTRADAY_COLLECT_INTERVAL' AND user_id IS NULL
+                """)
                 row = cursor.fetchone()
                 interval_minutes = int(row["value"]) if row and row["value"] else 5
                 conn.close()

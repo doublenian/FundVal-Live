@@ -174,7 +174,7 @@ class AIService:
 
         if not llm:
             return {
-                "markdown": "## ⚠️ 配置错误\n\n未配置 OpenAI API Key，请前往设置页面配置。",
+                "markdown": "## 配置错误\n\n未配置 OpenAI API Key，请前往设置页面配置。",
                 "indicators": {"status": "未知", "desc": "无法分析"},
                 "timestamp": datetime.datetime.now().strftime("%H:%M:%S")
             }
@@ -283,9 +283,11 @@ class AIService:
             }
 
         except Exception as e:
-            print(f"AI Analysis Error: {e}")
+            import traceback
+            error_detail = traceback.format_exc()
+            print(f"AI Analysis Error: {e}\n{error_detail}")
             return {
-                "markdown": f"##  分析失败\n\nLLM 调用失败: {str(e)}\n\n请检查 API 配置和提示词格式。",
+                "markdown": f"## 分析失败\n\nLLM 调用失败: {str(e)}\n\n请检查 API 配置和提示词格式。",
                 "indicators": indicators,
                 "timestamp": datetime.datetime.now().strftime("%H:%M:%S")
             }

@@ -32,56 +32,72 @@ def get_all_positions(account_id: int, user_id: Optional[int] = None) -> Dict[st
     total_cost = 0.0
     total_day_income = 0.0
 
+    # Optimization: Batch fetch fund info and NAV status for all positions
+    codes = [row["code"] for row in rows]
+    if not codes:
+        return {
+            "summary": {
+                "total_market_value": 0.0,
+                "total_cost": 0.0,
+                "total_income": 0.0,
+                "total_return_rate": 0.0,
+                "total_day_income": 0.0
+            },
+            "positions": []
+        }
+
+    # Batch query 1: Get fund info (name, type) for all codes
+    conn_batch = get_db_connection()
+    cursor_batch = conn_batch.cursor()
+    placeholders = ','.join('?' * len(codes))
+    cursor_batch.execute(f"""
+        SELECT code, name, type FROM funds WHERE code IN ({placeholders})
+    """, codes)
+    fund_info_map = {row["code"]: {"name": row["name"], "type": row["type"]} for row in cursor_batch.fetchall()}
+
+    # Batch query 2: Get latest NAV dates for all codes
+    from datetime import datetime
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    cursor_batch.execute(f"""
+        SELECT code, MAX(date) as latest_date
+        FROM fund_history
+        WHERE code IN ({placeholders})
+        GROUP BY code
+    """, codes)
+    nav_date_map = {row["code"]: row["latest_date"] for row in cursor_batch.fetchall()}
+    conn_batch.close()
+
     # 1. Fetch real-time data in parallel
     position_map = {row["code"]: row for row in rows}
-    
+
     with ThreadPoolExecutor(max_workers=10) as executor:
         # Submit tasks
         future_to_code = {
-            executor.submit(get_combined_valuation, code): code 
+            executor.submit(get_combined_valuation, code): code
             for code in position_map.keys()
         }
-        
+
         # Process results
         for future in as_completed(future_to_code):
             code = future_to_code[future]
             row = position_map[code]
-            
+
             try:
                 # Default safe values
                 data = future.result() or {}
-                name = data.get("name")
-                fund_type = None
 
-                # If name is missing, fetch from database
-                if not name:
-                    conn_temp = get_db_connection()
-                    cursor_temp = conn_temp.cursor()
-                    cursor_temp.execute("SELECT name, type FROM funds WHERE code = ?", (code,))
-                    db_row = cursor_temp.fetchone()
-                    conn_temp.close()
-                    if db_row:
-                        name = db_row["name"]
-                        fund_type = db_row["type"]
-                    else:
-                        name = code
+                # Use pre-fetched fund info
+                fund_info = fund_info_map.get(code, {})
+                name = data.get("name") or fund_info.get("name") or code
+                fund_type = fund_info.get("type")
 
-                # Get fund type (use cached value or call get_fund_type)
+                # Get fund type if not in cache
                 if not fund_type:
                     fund_type = get_fund_type(code, name)
 
-                # Check if today's NAV is available
-                from datetime import datetime
-                today_str = datetime.now().strftime("%Y-%m-%d")
-                conn_temp = get_db_connection()
-                cursor_temp = conn_temp.cursor()
-                cursor_temp.execute(
-                    "SELECT date FROM fund_history WHERE code = ? ORDER BY date DESC LIMIT 1",
-                    (code,)
-                )
-                latest_nav_row = cursor_temp.fetchone()
-                conn_temp.close()
-                nav_updated_today = latest_nav_row and latest_nav_row["date"] == today_str
+                # Use pre-fetched NAV date
+                latest_date = nav_date_map.get(code)
+                nav_updated_today = latest_date == today_str if latest_date else False
 
                 nav = float(data.get("nav", 0.0))
                 estimate = float(data.get("estimate", 0.0))
