@@ -183,16 +183,93 @@ def get_sina_valuation(code: str) -> Dict[str, Any]:
 
 def get_combined_valuation(code: str) -> Dict[str, Any]:
     """
-    Try Eastmoney first, fallback to Sina.
+    获取基金估值，优先级：
+    1. Eastmoney API
+    2. Sina API
+    3. 自定义算法估值（基于历史数据）
+    4. 兜底：返回昨日净值
     """
+    # 1. Try Eastmoney
     data = get_eastmoney_valuation(code)
-    if not data or data.get("estimate") == 0.0:
-        # Fallback to Sina
-        sina_data = get_sina_valuation(code)
-        if sina_data:
-            # Merge Sina info into Eastmoney structure
+    if data and data.get("estimate") and data.get("estimate") > 0:
+        return data
+
+    # 2. Fallback to Sina
+    sina_data = get_sina_valuation(code)
+    if sina_data and sina_data.get("estimate") and sina_data.get("estimate") > 0:
+        if data:
             data.update(sina_data)
-    return data
+            return data
+        return sina_data
+
+    # 3. Try custom estimation algorithm
+    from .estimate import estimate_nav
+    from datetime import datetime
+
+    try:
+        history = get_fund_history(code, limit=30)
+        if history and len(history) >= 2:
+            ml_result = estimate_nav(code, history)
+            if ml_result:
+                yesterday_nav = float(history[-1]["nav"])
+
+                # Get fund name from database if not available from API
+                fund_name = data.get("name") if data else None
+                if not fund_name or fund_name == code:
+                    conn = get_db_connection()
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT name FROM funds WHERE code = ?", (code,))
+                    row = cursor.fetchone()
+                    conn.close()
+                    fund_name = row["name"] if row else code
+
+                return {
+                    "code": code,
+                    "name": fund_name,
+                    "nav": yesterday_nav,
+                    "navDate": history[-1]["date"],
+                    "estimate": ml_result["estimate"],
+                    "estRate": ml_result["est_rate"],
+                    "time": datetime.now().strftime("%H:%M"),
+                    "source": "ml_estimate",  # 标记来源
+                    "confidence": ml_result.get("confidence", 0),
+                    "method": ml_result.get("method", "unknown")
+                }
+    except Exception as e:
+        logger.error(f"Custom estimation failed for {code}: {e}")
+
+    # 4. Final fallback: return yesterday's NAV as estimate
+    if data:
+        return data
+
+    # Last resort: try to get basic info
+    try:
+        history = get_fund_history(code, limit=1)
+        if history:
+            # Get fund name from database
+            fund_name = code
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM funds WHERE code = ?", (code,))
+            row = cursor.fetchone()
+            conn.close()
+            if row:
+                fund_name = row["name"]
+
+            return {
+                "code": code,
+                "name": fund_name,
+                "nav": float(history[-1]["nav"]),
+                "navDate": history[-1]["date"],
+                "estimate": float(history[-1]["nav"]),
+                "estRate": 0.0,
+                "time": "--",
+                "source": "fallback"
+            }
+    except:
+        pass
+
+    return {"code": code, "name": code, "nav": 0, "estimate": 0, "estRate": 0}
 
 
 def search_funds(q: str) -> List[Dict[str, Any]]:
@@ -590,6 +667,9 @@ def get_fund_intraday(code: str) -> Dict[str, Any]:
     estimate = float(em_data.get("estimate", 0.0))
     est_rate = float(em_data.get("estRate", 0.0))
     update_time = em_data.get("time", time.strftime("%H:%M:%S"))
+    source = em_data.get("source")
+    method = em_data.get("method")
+    confidence = em_data.get("confidence")
 
     # 1.5) Enrich with detailed info
     pz_data = get_eastmoney_pingzhong_data(code)
@@ -665,12 +745,15 @@ def get_fund_intraday(code: str) -> Dict[str, Any]:
     response = {
         "id": str(code),
         "name": name,
-        "type": sector, 
+        "type": sector,
         "manager": manager,
         "nav": nav,
         "estimate": estimate,
         "estRate": est_rate,
         "time": update_time,
+        "source": source,
+        "method": method,
+        "confidence": confidence,
         "holdings": holdings,
         "indicators": {
             "returns": {
