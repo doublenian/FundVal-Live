@@ -47,6 +47,10 @@ def get_all_positions(account_id: int, user_id: Optional[int] = None) -> Dict[st
         }
 
     # Batch query 1: Get fund info (name, type) for all codes
+    # Defensive: Limit batch size to prevent SQL statement overflow
+    if len(codes) > 500:
+        raise ValueError(f"Too many positions ({len(codes)}), maximum 500 allowed")
+
     conn_batch = get_db_connection()
     cursor_batch = conn_batch.cursor()
     placeholders = ','.join('?' * len(codes))

@@ -188,6 +188,13 @@ def get_aggregate_positions(current_user: Optional[User] = Depends(get_current_u
         cursor = conn.cursor()
 
         # 获取所有持仓
+        # Defensive: Limit batch size to prevent SQL statement overflow
+        if len(account_ids) > 100:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Too many accounts ({len(account_ids)}), maximum 100 allowed"
+            )
+
         placeholders = ",".join("?" * len(account_ids))
         cursor.execute(
             f"SELECT * FROM positions WHERE account_id IN ({placeholders}) AND shares > 0",

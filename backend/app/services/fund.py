@@ -65,7 +65,7 @@ def get_fund_type(code: str, name: str) -> str:
         if row and row["type"]:
             return row["type"]
     except Exception as e:
-        print(f"DB query error for {code}: {e}")
+        logger.error(f"DB query error for {code}: {e}")
     finally:
         if conn:
             conn.close()
@@ -150,7 +150,7 @@ def get_eastmoney_valuation(code: str) -> Dict[str, Any]:
                     "time": data.get("gztime")
                 }
     except Exception as e:
-        print(f"Eastmoney API error for {code}: {e}")
+        logger.warning(f"Eastmoney API error for {code}: {e}")
     return {}
 
 
@@ -177,7 +177,7 @@ def get_sina_valuation(code: str) -> Dict[str, Any]:
                     "time": f"{parts[7]} {parts[1]}"
                 }
     except Exception as e:
-        print(f"Sina Valuation API error for {code}: {e}")
+        logger.warning(f"Sina Valuation API error for {code}: {e}")
     return {}
 
 
@@ -387,7 +387,7 @@ def get_eastmoney_pingzhong_data(code: str) -> Dict[str, Any]:
 
             return data
     except Exception as e:
-        print(f"PingZhong API error for {code}: {e}")
+        logger.warning(f"PingZhong API error for {code}: {e}")
     return {}
 
 
@@ -404,7 +404,7 @@ def _get_fund_info_from_db(code: str) -> Dict[str, Any]:
         if row:
             return {"name": row["name"], "type": row["type"]}
     except Exception as e:
-        print(f"DB fetch error for {code}: {e}")
+        logger.error(f"DB fetch error for {code}: {e}")
     return {}
 
 
@@ -493,7 +493,7 @@ def _fetch_stock_spots_sina(codes: List[str]) -> Dict[str, float]:
                 
         return results
     except Exception as e:
-        print(f"Sina fetch failed: {e}")
+        logger.warning(f"Sina fetch failed: {e}")
         return {}
 
 
@@ -592,7 +592,7 @@ def get_fund_history(code: str, limit: int = 30) -> List[Dict[str, Any]]:
         conn.close()
         return results
     except Exception as e:
-        print(f"History fetch error for {code}: {e}")
+        logger.error(f"History fetch error for {code}: {e}")
         conn.close()
         return []
 
@@ -655,7 +655,7 @@ def _calculate_technical_indicators(history: List[Dict[str, Any]]) -> Dict[str, 
             "annual_return": f"{round(float(annual_return) * 100, 2)}%"
         }
     except Exception as e:
-        print(f"Indicator calculation error: {e}")
+        logger.error(f"Indicator calculation error: {e}")
         return {
             "sharpe": "--",
             "volatility": "--",

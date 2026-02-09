@@ -45,18 +45,24 @@ def get_db_connection():
 @contextmanager
 def db_connection():
     """
-    Context manager for database connections to prevent leaks.
+    Context manager for database transactions with thread-local connection pooling.
+
+    This context manager reuses the thread-local connection and only commits/rollbacks
+    transactions, without closing the connection (which would break the pooling).
 
     Usage:
         with db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(...)
+            # Auto-commits on success, auto-rollbacks on exception
     """
     conn = get_db_connection()
     try:
         yield conn
-    finally:
-        conn.close()
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
 
 
 def init_db():

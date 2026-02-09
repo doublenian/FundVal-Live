@@ -118,8 +118,8 @@ def collect_intraday_snapshots():
                     str(c) if not isinstance(c, dict) else c.get("code", "")
                     for c in watchlist_codes
                 ])
-        except:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to parse single-user watchlist: {e}")
 
     # Multi-user mode watchlist
     cursor.execute("SELECT value FROM settings WHERE key = 'user_watchlist' AND user_id IS NOT NULL")
@@ -132,8 +132,8 @@ def collect_intraday_snapshots():
                         str(c) if not isinstance(c, dict) else c.get("code", "")
                         for c in watchlist_codes
                     ])
-            except:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to parse multi-user watchlist: {e}")
 
     # Remove duplicates and filter out empty strings
     codes = list(set([c for c in codes if c and isinstance(c, str)]))
