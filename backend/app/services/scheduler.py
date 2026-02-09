@@ -86,21 +86,34 @@ def collect_intraday_snapshots():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Get holdings
+    # Get all holdings (from all users)
     cursor.execute("SELECT DISTINCT code FROM positions WHERE shares > 0")
     codes = [row["code"] for row in cursor.fetchall()]
 
-    # Get watchlist from settings (stored as JSON array)
+    # Get watchlist from settings (support both single-user and multi-user mode)
     import json
+
+    # Single-user mode watchlist
     cursor.execute("SELECT value FROM settings WHERE key = 'user_watchlist' AND user_id IS NULL")
     watchlist_row = cursor.fetchone()
     if watchlist_row and watchlist_row["value"]:
         try:
             watchlist_codes = json.loads(watchlist_row["value"])
             codes.extend(watchlist_codes)
-            codes = list(set(codes))  # Remove duplicates
         except:
             pass
+
+    # Multi-user mode watchlist
+    cursor.execute("SELECT value FROM user_settings WHERE key = 'user_watchlist'")
+    for row in cursor.fetchall():
+        if row["value"]:
+            try:
+                watchlist_codes = json.loads(row["value"])
+                codes.extend(watchlist_codes)
+            except:
+                pass
+
+    codes = list(set(codes))  # Remove duplicates
 
     if not codes:
         conn.close()

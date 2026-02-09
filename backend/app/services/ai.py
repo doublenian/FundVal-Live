@@ -81,15 +81,15 @@ class AIService:
         cursor = conn.cursor()
 
         if user_id is None:
-            # 单用户模式：读取 user_id IS NULL 的配置
+            # 单用户模式：读取 settings 表中 user_id IS NULL 的配置
             cursor.execute("""
                 SELECT key, value, encrypted FROM settings
                 WHERE user_id IS NULL
             """)
         else:
-            # 多用户模式：读取当前用户的配置
+            # 多用户模式：读取 user_settings 表中当前用户的配置
             cursor.execute("""
-                SELECT key, value, encrypted FROM settings
+                SELECT key, value, encrypted FROM user_settings
                 WHERE user_id = ?
             """, (user_id,))
 
