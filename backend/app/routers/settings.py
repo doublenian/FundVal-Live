@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Body, Depends
 from ..db import get_db_connection
 from ..crypto import encrypt_value, decrypt_value
 from ..config import Config
-from ..auth import User, get_current_user, is_multi_user_mode
+from ..auth import User, get_current_user
 from ..utils import get_user_id_for_query
 
 logger = logging.getLogger(__name__)

@@ -2,7 +2,7 @@ import datetime
 import logging
 from typing import List, Dict, Any, Optional
 from ..db import get_db_connection
-from ..auth import User, is_multi_user_mode
+from ..auth import User
 
 logger = logging.getLogger(__name__)
 
@@ -17,11 +17,8 @@ def get_user_id_for_query(user: Optional[User]) -> Optional[int]:
     """
     获取用于查询的 user_id
 
-    单用户模式：返回 None
     多用户模式：返回 user.id
     """
-    if not is_multi_user_mode():
-        return None
     return user.id if user else None
 
 
