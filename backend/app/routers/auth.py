@@ -12,11 +12,12 @@ from ..auth import (
     get_current_user,
     require_auth,
     require_admin,
+    has_admin_user,
     User,
     SESSION_COOKIE_NAME,
     SESSION_EXPIRY_DAYS
 )
-from ..db import get_db_connection
+from ..db import get_db_connection, check_database_version, CURRENT_SCHEMA_VERSION
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -83,9 +84,98 @@ class ChangePasswordRequest(BaseModel):
     new_password: str
 
 
+class InitAdminRequest(BaseModel):
+    username: str
+    password: str
+
+
 # ============================================================================
 # API Endpoints
 # ============================================================================
+
+@router.get("/init-status")
+def init_status():
+    """
+    获取系统初始化状态（无需认证）
+
+    Returns:
+        dict: {
+            "needs_init": bool,  # 是否需要初始化（没有管理员用户）
+            "needs_rebuild": bool  # 是否需要重建数据库（版本不匹配）
+        }
+    """
+    needs_init = not has_admin_user()
+
+    # 检查数据库版本
+    current_version = check_database_version()
+    needs_rebuild = current_version != CURRENT_SCHEMA_VERSION
+
+    return {
+        "needs_init": needs_init,
+        "needs_rebuild": needs_rebuild
+    }
+
+
+@router.post("/init-admin")
+def init_admin(request: InitAdminRequest):
+    """
+    创建初始管理员用户（无需认证，只能在未初始化时调用）
+
+    Args:
+        request: 初始管理员信息（username, password）
+
+    Returns:
+        dict: 成功消息和管理员信息
+
+    Raises:
+        HTTPException: 400 已存在管理员用户
+    """
+    # 检查是否已经有管理员
+    if has_admin_user():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="系统已初始化，无法创建初始管理员"
+        )
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        # 创建管理员用户
+        password_hash = hash_password(request.password)
+        cursor.execute("""
+            INSERT INTO users (username, password_hash, is_admin)
+            VALUES (?, ?, 1)
+        """, (request.username, password_hash))
+        admin_id = cursor.lastrowid
+
+        # 为管理员创建默认账户
+        cursor.execute("""
+            INSERT INTO accounts (name, description, user_id)
+            VALUES (?, ?, ?)
+        """, ("默认账户", "管理员默认账户", admin_id))
+        account_id = cursor.lastrowid
+
+        conn.commit()
+
+        return {
+            "message": "初始管理员创建成功",
+            "admin_id": admin_id,
+            "username": request.username,
+            "default_account_id": account_id
+        }
+    except Exception as e:
+        conn.rollback()
+        if "UNIQUE constraint failed" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="用户名已存在"
+            )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"创建管理员失败: {str(e)}"
+        )
+
 
 @router.get("/registration-enabled")
 def get_registration_enabled():

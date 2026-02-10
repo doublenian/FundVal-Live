@@ -60,6 +60,20 @@ def verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
+def has_admin_user() -> bool:
+    """
+    检测是否存在管理员用户
+
+    Returns:
+        bool: True 表示存在管理员，False 表示不存在
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) as count FROM users WHERE is_admin = 1")
+    row = cursor.fetchone()
+    return row["count"] > 0
+
+
 # ============================================================================
 # Session 管理
 # ============================================================================
