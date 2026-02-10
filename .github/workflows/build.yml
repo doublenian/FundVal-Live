@@ -13,12 +13,8 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: macos-12
-            platform: macOS
-            arch: x64
           - os: macos-latest
             platform: macOS
-            arch: arm64
           - os: windows-latest
             platform: Windows
           - os: ubuntu-latest
@@ -71,7 +67,7 @@ jobs:
 
       - name: Build Electron app (macOS)
         if: runner.os == 'macOS'
-        run: npm run dist -- --${{ matrix.arch }}
+        run: npm run dist
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -91,7 +87,7 @@ jobs:
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
-          name: macos-build-${{ matrix.arch }}
+          name: macos-build
           path: |
             release/*.dmg
             release/latest-mac.yml
@@ -134,8 +130,8 @@ jobs:
             ## 安装包下载
 
             ### macOS
-            - **Apple Silicon (M1/M2/M3)**: `FundVal-Live-*-arm64.dmg`
-            - **Intel**: `FundVal-Live-*-x64.dmg`
+            - **Apple Silicon (M1/M2/M3/M4)**: `FundVal-Live-*.dmg`
+            - **Intel Mac**: 请使用 Rosetta 2 运行 Apple Silicon 版本
 
             ### Windows
             - **64位**: `FundVal-Live-Setup-*.exe`
@@ -148,8 +144,7 @@ jobs:
 
             1. 解决OOM问题
             2. 客户端自动更新功能
-            3. 支持 Mac Intel 版本构建
-            4. 支持AI分析历史
+            3. 支持AI分析历史
 
             ---
 
@@ -180,8 +175,7 @@ jobs:
             本项目采用 AGPL-3.0 协议开源。如果你使用本项目代码提供网络服务，必须开源你的修改。
             详见：https://github.com/Ye-Yu-Mo/FundVal-Live/blob/main/LICENSE
           files: |
-            macos-build-x64/*
-            macos-build-arm64/*
+            macos-build/*
             windows-build/*
             linux-build/*
           draft: false
