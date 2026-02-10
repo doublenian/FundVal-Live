@@ -14,6 +14,17 @@ CURRENT_SCHEMA_VERSION = 1
 # Thread-local storage for connection pooling
 _thread_local = threading.local()
 
+
+def get_db_type() -> str:
+    """
+    获取当前数据库类型
+
+    Returns:
+        str: "sqlite" 或 "postgresql"
+    """
+    return Config.DB_TYPE
+
+
 def get_db_connection():
     # Reuse connection within same thread to reduce lock contention
     if hasattr(_thread_local, 'conn') and _thread_local.conn:
